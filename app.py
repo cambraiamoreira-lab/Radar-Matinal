@@ -79,3 +79,95 @@ with st.form("config_form"):
     
     st.markdown("---")
     enviado = st.form_submit_button("💾 SALVAR E TESTAR ENVIO NO TELEGRAM")
+    # ============================================
+# ⚙️ LÓGICA DE PROCESSAMENTO E ENVIO
+# ============================================
+if enviado:
+    # 1. Validação
+    if len(temas_escolhidos) != 3:
+        st.error("⚠️ Por favor, selecione EXATAMENTE 3 temas.")
+    elif not nome or not telegram_user or not cidade:
+        st.error("⚠️ Por favor, preencha todos os campos.")
+    else:
+        st.info("⏳ Processando sua configuração e buscando informações...")
+        
+        # SEU TOKEN DO TELEGRAM (Substitua pelo seu token real aqui!)
+        TELEGRAM_TOKEN = "6162605645:AAH-1bhEwZ1dydIGBZMUu7IWFMvXmmFkN6Q"
+        TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        
+        # --- FUNÇÃO PARA BUSCAR CLIMA (API Gratuita wttr.in) ---
+        def obter_clima(cidade):
+            try:
+                url = f"https://wttr.in/{cidade.replace(' ', '+')}?format=j1"
+                resp = requests.get(url, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    temp = data['current_condition'][0]['temp_C']
+                    desc = data['current_condition'][0]['weatherDesc'][0]['value']
+                    return f"🌤️ *Clima em {cidade.title()}*: {temp}°C, {desc}"
+                return "🌤️ Clima: Não foi possível obter os dados agora."
+            except:
+                return "🌤️ Clima: Indisponível no momento."
+
+        # --- FUNÇÃO PARA BUSCAR NOTÍCIAS (Usando Jina AI Reader + RSS, 100% Grátis e sem chave) ---
+        def obter_noticia(tema):
+            # Mapeamento de temas para feeds RSS confiáveis
+            feeds = {
+                "Política": "https://g1.globo.com/politica/rss2.xml",
+                "Tecnologia": "https://g1.globo.com/tecnologia/rss2.xml",
+                "Economia": "https://g1.globo.com/economia/rss2.xml",
+                "Esportes": "https://ge.globo.com/rss/ge/",
+                "Meio Ambiente": "https://g1.globo.com/natureza/rss2.xml",
+                "Saúde": "https://g1.globo.com/saude/rss2.xml",
+                "Entretenimento": "https://g1.globo.com/pop-arte/rss2.xml"
+            }
+            
+            rss_url = feeds.get(tema, feeds["Tecnologia"])
+            # Jina AI converte RSS em texto limpo gratuitamente
+            jina_url = f"https://r.jina.ai/{rss_url}"
+            
+            try:
+                resp = requests.get(jina_url, timeout=10)
+                if resp.status_code == 200:
+                    texto = resp.text
+                    # Pega as primeiras linhas que contêm os títulos (simplificado)
+                    linhas = [l.strip() for l in texto.split('\n') if l.strip() and not l.startswith('http')]
+                    if len(linhas) > 2:
+                        # A primeira linha costuma ser o título do feed, a segunda a primeira notícia
+                        return f"📰 *{tema}*: {linhas[1]}"
+                return f"📰 *{tema}*: Sem notícias recentes."
+            except:
+                return f"📰 *{tema}*: Indisponível no momento."
+
+        # 2. Montar a Mensagem
+        mensagem = f"☀️ *Bom dia, {nome}!*\n\nAqui está o seu *Radar Matinal* de {datetime.now().strftime('%d/%m')}:\n\n"
+        mensagem += obter_clima(cidade) + "\n\n"
+        mensagem += "━━━━━━━━━━━━━━━━━━\n\n"
+        
+        for tema in temas_escolhidos:
+            mensagem += obter_noticia(tema) + "\n\n"
+            
+        mensagem += "━━━━━━━━━━━━━━━━━━\n"
+        mensagem += "_Configurado via Radar Matinal App_"
+
+        # 3. Enviar para o Telegram
+        payload = {
+            "chat_id": f"@{telegram_user}",
+            "text": mensagem,
+            "parse_mode": "Markdown"
+        }
+        
+        try:
+            resposta = requests.post(TELEGRAM_URL, json=payload, timeout=10)
+            if resposta.json().get("ok"):
+                st.success("✅ SUCESSO! A mensagem foi enviada para o seu Telegram.")
+                st.markdown("📱 *Verifique seu celular agora!*")
+            else:
+                st.error(f"❌ Erro no Telegram: {resposta.json().get('description')}")
+                st.info("💡 Dica: Verifique se você digitou o usuário do Telegram corretamente e se iniciou uma conversa com o bot @newscambraiabot.")
+        except Exception as e:
+            st.error(f"❌ Erro de conexão: {e}")
+
+# Rodapé
+st.markdown("---")
+st.markdown("<p style='text-align:center; color:#95A5A6; font-size:0.8rem;'>Radar Matinal © 2026</p>", unsafe_allow_html=True)
