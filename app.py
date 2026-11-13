@@ -152,7 +152,7 @@ if enviado:
 
         # 3. Enviar para o Telegram
         payload = {
-            "chat_id": f"@{telegram_user}",
+            "chat_id": telegram_user,",
             "text": mensagem,
             "parse_mode": "Markdown"
         }
